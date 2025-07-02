@@ -46,21 +46,21 @@ To handle allocation leving RL nodes are represented by a sub-network as follows
 - Each RL has a set of slot nodes that represent the number of rides they can take.
 - Each subnoslot node has an incremental cost associated with it, so that the algorithm prefers to fill the RLs evenly.
 
-e.g. If RL1 offers R1 but their first offer slot is full then they can offer slot 2 at a cost of 2.
-If RL2 also offers R1 but their first offer slot is empty then we can achieve a lower cost by assigning
-that ride to RL2,Slot1 instead of RL1,Slot2.
+e.g. If L1 offers R1 but their first offer slot is full then they can offer slot 2 at a cost of 2.
+If L2 also offers R1 but their first offer slot is empty then we can achieve a lower cost by assigning
+that ride to L2,Slot1 instead of L1,Slot2.
 
-                     RL_in
+                     L1_in
          ______________|___________________
         |              |                   |
- RL_offer_slot1    RL_offer_slot2    RL_offer_slotN
+ offer_slot1       offer_slot2       offer_slotN
  (capacity=1)      (capacity=1)      (capacity=1)
  (cost=1)          (cost=2)          (cost=N)
         |              |                   |
          ----------------------------------
                        |
-                     RL_out
-             (capacity=RL_capacity)
+                     L1_out
+             (capacity=leader_capacity)
                        |
                      Sink
 
