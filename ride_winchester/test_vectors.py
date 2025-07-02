@@ -12,6 +12,9 @@ test_vectors = {
             'Leader_X': ['A1', 'A2', 'A3'],
             'Leader_Y': ['A1', 'A2', 'A4', 'A5'],
             'Leader_Z': ['A3', 'A4', 'A5']
+        },
+        "expected_allocations": {
+            'Leader_X': ['A1'], 'Leader_Y': ['A2', 'A5'], 'Leader_Z': ['A3', 'A4']
         }
     },
     "test2": {
@@ -21,6 +24,9 @@ test_vectors = {
             'Bob':   ['9:30AM', '10:00AM', '10:30AM', '11:00AM'],
             'Charlie': ['10:00AM', '10:30AM', '11:00AM'],
             'David': ['9:00AM', '11:00AM']
+        },
+        "expected_allocations": {
+            'Alice': ['9:30AM', '10:00AM'], 'Bob': ['10:30AM'], 'Charlie': ['11:00AM'], 'David': ['9:00AM']
         }
     }
 }

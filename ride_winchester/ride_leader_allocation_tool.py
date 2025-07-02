@@ -194,25 +194,27 @@ def extract_allocations(flow_dict, rides, leader_offers):
 def tests():
     """Example usage of the appointment scheduling solver"""
 
-    LOGGER.info("Running tests...")
-
-    LOGGER.info("Running simple test case #1")
+    print("\nRunning simple test case #1")
     rides = test_vectors.test_vectors['test1']['rides']
     leader_offers = test_vectors.test_vectors['test1']['leader_offers']
+    expected_allocations = test_vectors.test_vectors['test1']['expected_allocations']
     graph, source, sink = populate_graph(rides, leader_offers)
     rides_filled, flow_dict = assign_ride_leaders(graph=graph, source=source, sink=sink)
     pprint(extract_allocations(flow_dict, rides, leader_offers))
     print(f"Number of filled rides: {rides_filled} out of {len(rides)}")
+    assert extract_allocations(flow_dict, rides, leader_offers) == expected_allocations, "Test case #1 failed"
 
-    LOGGER.info("Running simple test case #2")
+    print("\nRunning simple test case #2")
     rides = test_vectors.test_vectors['test2']['rides']
     leader_offers = test_vectors.test_vectors['test2']['leader_offers']
+    expected_allocations = test_vectors.test_vectors['test2']['expected_allocations']
     graph, source, sink = populate_graph(rides, leader_offers)
     rides_filled, flow_dict = assign_ride_leaders(graph=graph, source=source, sink=sink)
     pprint(extract_allocations(flow_dict, rides, leader_offers))
     print(f"Number of filled rides: {rides_filled} out of {len(rides)}")
+    assert extract_allocations(flow_dict, rides, leader_offers) == expected_allocations, "Test case #2 failed"
 
-    LOGGER.info("Running complex test case #1")
+    print("\nRunning complex test case #1")
     rides, leader_offers = test_vectors.generate_test_data(
         num_rides=90,
         num_leaders=6,
@@ -223,6 +225,7 @@ def tests():
     rides_filled, flow_dict = assign_ride_leaders(graph=graph, source=source, sink=sink)
     pprint(extract_allocations(flow_dict, rides, leader_offers))
     print(f"Number of filled rides: {rides_filled} out of {len(rides)}")
+    print()
 
 
 if __name__ == "__main__":
