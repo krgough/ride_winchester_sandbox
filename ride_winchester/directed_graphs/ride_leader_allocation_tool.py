@@ -78,7 +78,7 @@ from pprint import pprint
 
 import networkx as nx
 
-import test_vectors
+from ride_winchester.test_vectors import test_vectors
 
 LOGGER = logging.getLogger(__name__)
 
