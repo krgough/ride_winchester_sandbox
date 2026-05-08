@@ -322,7 +322,8 @@ def main():
 
     with sync_playwright() as p:
         # Launch browser (headless=False so you can see the login happen)
-        browser = p.chromium.launch(headless=args.headless)
+        browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=args.headless)
+        # browser = p.chromium.launch(headless=args.headless)
         context = browser.new_context()
         page = context.new_page()
 

@@ -3,3 +3,4 @@ matplotlib
 tabulate
 requests
 playwright
+python-dotenv

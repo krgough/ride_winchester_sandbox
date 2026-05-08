@@ -4,7 +4,7 @@ Description=Run Booking Bot script
 [Service]
 Type=oneshot
 WorkingDirectory=/home/pi/repositories/ride_winchester_sandbox
-ExecStart=/home/pi/repositories/ride_winchester_sandbox/env/bin/python3 -m ride_winchester.booking_bot.booking_bot -p
+ExecStart=/home/pi/repositories/ride_winchester_sandbox/venv/bin/python3 -m ride_winchester.booking_bot.booking_bot --headless -d Tuesday,Friday -p EASY,EASY_PLUS,FREE_FORMAT
 
 [Install]
 WantedBy=multi-user.target
