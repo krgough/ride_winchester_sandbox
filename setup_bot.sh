@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-#set -e
+set -e
 
 # Install dependencies
 echo "Creating venv"
@@ -18,8 +18,7 @@ echo "Setting up booking_bot service..."
 sudo cp files/booking_bot.service /etc/systemd/system/
 sudo cp files/booking_bot.timer /etc/systemd/system/
 
-sudo systemctl enable fault_monitor.timer
+sudo systemctl enable booking_bot.timer
 
-sudo systemctl start fault_monitor.timer
-sudo systemctl status fault_monitor.timer
-
+sudo systemctl start booking_bot.timer
+sudo systemctl status booking_bot.timer
