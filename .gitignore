@@ -1,2 +1,7 @@
 .vscode
 __pycache__
+databases
+venv
+.python-version
+.env
+previously_checked_rides.txt

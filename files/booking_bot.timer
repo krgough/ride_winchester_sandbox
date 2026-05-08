@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Booking Bot every 15 minutes
+
+[Timer]
+# Run every 15mins after last finish - avoids overlapping runs
+OnUnitActiveSec=15min
+# Optional: Ensure it runs at 00, 15, 30, 45 if you prefer a wall-clock schedule
+# OnCalendar=*:0/15
+
+[Install]
+WantedBy=timers.target
