@@ -383,6 +383,7 @@ def main():
                 notify_booking_or_waitlist(ride, action="booked")
 
             # Waitlist if the ride is full and the user is not already on a ride
+            # TODO: Only autobooking friday rides for now.
             elif (
                 ride["RIDE STATUS"] == RideStates.FULL.value
                 and ride["YOUR STATUS"] == "Not on ride"
