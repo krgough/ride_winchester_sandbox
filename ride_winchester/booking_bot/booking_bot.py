@@ -205,13 +205,13 @@ def inspect_ride(page, ride_id):
     table_locator = page.locator("table.centertable")  # Use the actual ID or class
     rows = table_locator.locator("tr").all()
 
-    ride_details = {"ride_id": ride_id}
+    ride_details = {"RIDE_ID": ride_id}
     for row in rows:
         # Get the cells in this row
         cells = row.locator("td").all_inner_texts()
 
         if len(cells) == 2:
-            key = cells[0].strip()
+            key = cells[0].strip().upper()
             value = cells[1].strip()
             ride_details[key] = value
 
@@ -226,8 +226,15 @@ def inspect_ride(page, ride_id):
 
 def load_previously_checked_rides(filename):
     """ Load the list of previously checked rides """
-    with open(filename, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f.readlines()]
+
+    list_of_rides = []
+    # Check if the file exists - if not create it
+    if not os.path.exists(filename):
+        LOGGER.info("Previously checked rides file not found. Using empty list.")
+    else:
+        with open(filename, "r", encoding="utf-8") as f:
+            list_of_rides = [line.strip() for line in f.readlines()]
+    return list_of_rides
 
 
 def add_to_previously_checked_rides(ride_id):
@@ -274,8 +281,8 @@ def notify_ride(ride):
         json.dumps(ride, indent=2)
     )
     url = f"https://ntfy.sh/{ENV_VARS['NOTIFICATION_TOPIC']}"
-    rw_url = f"https://www.winchesterctc.org.uk/RW/CalendarDetailsV2.php?ride={ride['ride_id']}"
-    title = f"New ride found: {ride['Date']}, {ride['Description']}"
+    rw_url = f"https://www.winchesterctc.org.uk/RW/CalendarDetailsV2.php?ride={ride['RIDE_ID']}"
+    title = f"New ride found: {ride['DATE']}, {ride['DESCRIPTION']}"
     headers = {
         "Actions": f"View, View Ride, url={rw_url}",
         "Priority": "5",
@@ -298,7 +305,7 @@ def notify_booking_or_waitlist(ride, action):
         json.dumps(ride, indent=2)
     )
     url = f"https://ntfy.sh/{ENV_VARS['NOTIFICATION_TEST_TOPIC']}"
-    title = f"Successfully {action} ride: {ride['Date']}, {ride['Description']}"
+    title = f"Successfully {action} ride: {ride['DATE']}, {ride['DESCRIPTION']}"
     headers = {
         "Priority": "5",
         "Title": title
@@ -346,51 +353,51 @@ def main():
 
         # If a ride is available or full and the user is not already on the ride, then notify the user
 
-        # First filet the rides for all previously checked rides
-        not_checked = [ride for ride in rides if ride["ride_id"] not in previously_checked_rides]
+        # First filter the rides for all previously checked rides
+        not_checked = [ride for ride in rides if ride["RIDE_ID"] not in previously_checked_rides]
         LOGGER.info("Found %d rides that haven't been checked before.", len(not_checked))
 
         active_rides = [
             ride for ride in not_checked
-            if ride["Ride status"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]
+            if ride["RIDE STATUS"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]
         ]
         LOGGER.info("Found %d rides that are new and available or full.", len(active_rides))
 
         for ride in not_checked:
-            if ride["Ride status"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]:
 
-                LOGGER.info(
-                    "New ride found: rid=%s, date=%s, desc=%s", ride["ride_id"], ride["Date"], ride["Description"]
-                )
+            LOGGER.info(
+                "New active ride found: rid=%s, date=%s, desc=%s", ride["RIDE_ID"], ride["DATE"], ride["DESCRIPTION"]
+            )
 
-                # Notify the user about all new rides
-                notify_ride(ride)
+            # Notify the user about all new rides
+            notify_ride(ride)
 
-                # Book if the ride is available and the user is not already on a ride
-                if (
-                    ride["Ride status"] == RideStates.AVAILABLE.value
-                    and ride["Your status"] == "Not on ride"
-                    and ride["Description"].startswith("Fri")  # Only auto-book FRI rides for now
-                ):
-                    LOGGER.info("Booking ride: %s, %s, %s", ride["ride_id"], ride['Date'], ride['Description'])
-                    # book_ride(page, ride["ride_id"])
-                    notify_booking_or_waitlist(ride, action="booked")
+            # Book if the ride is available and the user is not already on a ride
+            if (
+                ride["RIDE STATUS"] == RideStates.AVAILABLE.value
+                and ride["YOUR STATUS"] == "Not on ride"
+                and ride["DESCRIPTION"].startswith("Fri")  # Only auto-book FRI rides for now
+            ):
+                LOGGER.info("New AVAILABLE ride: %s, %s, %s", ride["RIDE_ID"], ride["DATE"], ride["DESCRIPTION"])
+                # book_ride(page, ride["ride_id"])
+                notify_booking_or_waitlist(ride, action="booked")
 
-                # Waitlist if the ride is full and the user is not already on a ride
-                if (
-                    ride["Ride status"] == RideStates.FULL.value
-                    and ride["Your status"] == "Not on ride"
-                    and ride["Description"].startswith("Fri")  # Only auto-waitlist FRI rides for now
-                ):
-                    LOGGER.info("Waitlisting: %s, %s, %s", ride["ride_id"], ride["Date"], ride["Description"])
-                    # add_to_wait_list(page, ride["ride_id"])
-                    notify_booking_or_waitlist(ride, action="waitlisted")
+            # Waitlist if the ride is full and the user is not already on a ride
+            elif (
+                ride["RIDE STATUS"] == RideStates.FULL.value
+                and ride["YOUR STATUS"] == "Not on ride"
+                and ride["DESCRIPTION"].startswith("Fri")  # Only auto-waitlist FRI rides for now
+            ):
+                LOGGER.info("New FULL ride: %s, %s, %s", ride["RIDE_ID"], ride["DATE"], ride["DESCRIPTION"])
+                # add_to_wait_list(page, ride["RIDE_ID"])
+                notify_booking_or_waitlist(ride, action="waitlised")
 
-            add_to_previously_checked_rides(ride["ride_id"])
+            # Now we have checked this ride we mark is so that we don't try to book/waitlist/notify again
+            add_to_previously_checked_rides(ride["RIDE_ID"])
 
         remove_old_rides_from_previously_checked_rides(
             filename=PREVIOUSLY_CHECKED_RIDES_FILE,
-            valid_ride_ids=[ride["ride_id"] for ride in rides]
+            valid_ride_ids=[ride["RIDE_ID"] for ride in rides]
         )
 
         # Keeps the browser open so you can inspect it manually
