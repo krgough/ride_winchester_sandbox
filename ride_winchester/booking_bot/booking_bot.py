@@ -20,21 +20,6 @@ from playwright.sync_api import sync_playwright
 
 LOGGER = logging.getLogger(__name__)
 
-load_dotenv(Path(__file__).parent / ".env")  # Load environment variables from .env file
-
-
-ENV_VARS = {
-    "USERNAME": os.getenv("RW_USERNAME", None),
-    "PASSWORD": os.getenv("RW_PASSWORD", None),
-    "NOTIFICATION_TOPIC": os.getenv("NOTIFICATION_TOPIC", None),
-    "NOTIFICATION_TEST_TOPIC": os.getenv("NOTIFICATION_TEST_TOPIC", None)
-}
-
-if not all(ENV_VARS.values()):
-    missing_vars = [key for key, value in ENV_VARS.items() if not value]
-    LOGGER.error("The following environment variables are missing from the .env file: %s", ", ".join(missing_vars))
-    sys.exit(1)
-
 
 class Paces(Enum):
     """ Enum for the different pace options on the booking form. """
@@ -63,6 +48,33 @@ class RideStates(Enum):
     UNKNOWN = "Unknown"
 
 
+load_dotenv(Path(__file__).parent / ".env")  # Load environment variables from .env file
+
+ENV_VARS = {
+    "USERNAME": os.getenv("RW_USERNAME", None),
+    "PASSWORD": os.getenv("RW_PASSWORD", None),
+    "NOTIFICATION_TOPIC": os.getenv("NOTIFICATION_TOPIC", None),
+    "NOTIFICATION_TEST_TOPIC": os.getenv("NOTIFICATION_TEST_TOPIC", None),
+    "HEADLESS": os.getenv("HEADLESS", None) == "True",
+    "FILTER_DAYS": os.getenv("FILTER_DAYS", None),
+    "FILTER_PACES": os.getenv("FILTER_PACES", None)
+}
+
+if not all(ENV_VARS.values()):
+    missing_vars = [key for key, value in ENV_VARS.items() if not value]
+    LOGGER.error("The following environment variables are missing from the .env file: %s", ", ".join(missing_vars))
+    sys.exit(1)
+
+ENV_VARS["FILTER_DAYS"] = [
+    Days[day.strip().upper()]
+    for day in ENV_VARS["FILTER_DAYS"].split(",")
+] if ENV_VARS["FILTER_DAYS"] else None
+
+ENV_VARS["FILTER_PACES"] = [
+    Paces[pace.strip().upper()]
+    for pace in ENV_VARS["FILTER_PACES"].split(",")
+] if ENV_VARS["FILTER_PACES"] else None
+
 PREVIOUSLY_CHECKED_RIDES_FILE = "ride_winchester/booking_bot/previously_checked_rides.txt"
 
 
@@ -82,20 +94,6 @@ def get_args():
         help="Automatically book available rides and add to wait list for full rides."
     )
 
-    # split comma separated values and convert to list of enums
-    parser.add_argument(
-        "-d", "--days",
-        type=lambda s: [Days[day.strip().upper()] for day in s.split(",")],
-        help="Comma separated days of the week to filter rides by. E.g. --days Tuesday,Thursday,Saturday",
-        required=True
-    )
-
-    parser.add_argument(
-        "-p", "--paces",
-        type=lambda s: [Paces[pace.strip().upper()] for pace in s.split(",")],
-        help="Comma separated pace options to filter rides by. EASY, EASY_PLUS, MEDIUM, MEDIUM_PLUS, FREE_FORMAT",
-        required=True
-    )
     return parser.parse_args()
 
 
@@ -128,6 +126,7 @@ def set_checkbox(page, checkbox_id, set_checked=True):
         LOGGER.info("Deselecting %s...", checkbox_id)
         # Convoluted way to uncheck - this was all that worked
         page.locator(f"#{checkbox_id.value}").set_checked(False)
+        time.sleep(0.5)
         page.evaluate(f"""
             const el = document.getElementById('{checkbox_id.value}');
             if (el) {{
@@ -156,7 +155,7 @@ def set_ride_filters(page, day_selections, pace_selections):
         set_checkbox(page, pace, set_checked=pace in pace_selections)
         # time.sleep(0.5)  # Add a small delay to allow the page to update after each checkbox change
 
-    time.sleep(5)  # Wait a bit for the page to update after changing filters
+    time.sleep(1)  # Wait a bit for the page to update after changing filters
 
 
 def inspect_ride(page, ride_id):
@@ -322,14 +321,12 @@ def notify_booking_or_waitlist(ride, action):
 def main():
     """ Main function to run the Playwright script """
 
-    args = get_args()
-
     # Load the list of previously checked rides to avoid duplicate notifications
     previously_checked_rides = load_previously_checked_rides(filename=PREVIOUSLY_CHECKED_RIDES_FILE)
 
     with sync_playwright() as p:
         # Launch browser (headless=False so you can see the login happen)
-        browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=args.headless)
+        browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=ENV_VARS["HEADLESS"])
         # browser = p.chromium.launch(headless=args.headless)
         context = browser.new_context()
         page = context.new_page()
@@ -338,7 +335,7 @@ def main():
         login(page)
 
         # Set the day and pace filters
-        set_ride_filters(page, args.days, args.paces)
+        set_ride_filters(page, ENV_VARS["FILTER_DAYS"], ENV_VARS["FILTER_PACES"])
 
         # Scrape the list of all Ride IDs and get the details for each ride
         ride_values = page.eval_on_selector_all("select#xx option", "options => options.map(o => o.value)")

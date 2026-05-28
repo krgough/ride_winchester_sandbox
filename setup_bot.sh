@@ -29,10 +29,4 @@ sudo systemctl enable booking_bot.timer
 sudo systemctl start booking_bot.timer
 sudo systemctl status booking_bot.timer
 
-
-sudo apt-get install libatk1.0-0\
-libatk-bridge2.0-0\
-libxkbcommon0\     
-libpango-1.0-0\    
-libxdamage1\       
-libatspi2.0-0
+sudo apt-get install libatk1.0-0 libatk-bridge2.0-0 libxkbcommon0 libpango-1.0-0 libxdamage1 libatspi2.0-0
