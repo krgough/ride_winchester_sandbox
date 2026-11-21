@@ -3,7 +3,7 @@
 Create the planning claendar fo RW co-ordinator
 
 """
-
+from argparse import ArgumentParser
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -34,7 +34,12 @@ def generate_monthly_block_dates(start_date_str, num_blocks):
                 "dates": [
                     {
                         "Who": "RW Coordinator",
-                        "Action": "Email the schedule and links to Ride Coordinators",
+                        "Action": "Prepare templates, ride patterns.  Email to to Ride Coordinators",
+                        "Due date": (block_start - relativedelta(days=31)).strftime("%Y-%m-%d"),
+                    },
+                    {
+                        "Who": "Ride Coordinators",
+                        "Action": "DEADLINE - Confirm templates/ride patterns",
                         "Due date": (block_start - relativedelta(days=25)).strftime("%Y-%m-%d"),
                     },
                     {
@@ -49,7 +54,7 @@ def generate_monthly_block_dates(start_date_str, num_blocks):
                     },
                     {
                         "Who": "Ride Leaders",
-                        "Action": "Ride Leader offers deadline",
+                        "Action": "DEADLINE - Complete Ride Leader offers",
                         "Due date": (block_start - relativedelta(days=17)).strftime("%Y-%m-%d"),
                     },
                     {
@@ -59,7 +64,7 @@ def generate_monthly_block_dates(start_date_str, num_blocks):
                     },
                     {
                         "Who": "Ride Coordinators",
-                        "Action": "Deadline for manual changes/edits",
+                        "Action": "DEADLINE - finalise manual changes/edits",
                         "Due date": (block_start - relativedelta(days=11)).strftime("%Y-%m-%d"),
                     },
                     {
@@ -76,8 +81,18 @@ def generate_monthly_block_dates(start_date_str, num_blocks):
 
 def main():
     """Entry point"""
-    first_block_start = "2025-10-01"
-    number_of_blocks = 6
+
+    parser = ArgumentParser(description="Generate ride planning calendar")
+    parser.add_argument(
+        "--start", "-s",
+        type=str,
+        required=True,
+        help="Start date of the first block. Format: YYYY-MM-DD"
+    )
+    args = parser.parse_args()
+
+    first_block_start = args.start
+    number_of_blocks = 1
 
     data = generate_monthly_block_dates(first_block_start, number_of_blocks)
 

@@ -5,3 +5,4 @@ venv
 .python-version
 .env
 previously_checked_rides.txt
+.DS_Store
