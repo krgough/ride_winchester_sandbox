@@ -1,0 +1,21 @@
+# Environment variables for the booking bot.
+# Copy this file to .env and fill in the required values.
+# Credentials for the booking bot.  Do not checkin the .env copy to github.
+
+RW_USERNAME=your-username-here
+RW_PASSWORD=your-password-here
+
+NOTIFICATION_TOPIC = your-notification-topic-here
+NOTIFICATION_TEST_TOPIC = your-notification-test-topic-here
+
+# URL for ride winchester
+# RW_URL="https://winchesterctc.org.uk/RW/Dev/user_login.php"
+RW_URL="https://winchestercyclingclub.org.uk/RW/signin.php"
+
+# Headless mode (no browser window)
+HEADLESS="True"
+
+# Ride Filters
+#FILTER_DAYS="Tuesday,Friday"
+FILTER_DAYS="Friday"
+FILTER_PACES="EASY,EASY_PLUS,FREE_FORMAT"

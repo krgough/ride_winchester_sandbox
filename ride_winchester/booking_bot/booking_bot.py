@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import sys
 import time
+
 import requests
 
 from dotenv import load_dotenv
@@ -43,19 +44,21 @@ class Days(Enum):
 class RideStates(Enum):
     """ Enum for the different ride states that can be scraped from the ride details page. """
     AVAILABLE = "Available to book"
-    NOT_AVAILABLE = "Ride not available yet"
-    FULL = "RIDE FULL"
+    NOT_AVAILABLE = "Leader not set ride yet"
+    NO_LEADER = "No Leader"
+    FULL = "Ride full"
     UNKNOWN = "Unknown"
 
 
 load_dotenv(Path(__file__).parent / ".env")  # Load environment variables from .env file
 
 ENV_VARS = {
+    "RW_URL": os.getenv("RW_URL", None),
     "USERNAME": os.getenv("RW_USERNAME", None),
     "PASSWORD": os.getenv("RW_PASSWORD", None),
     "NOTIFICATION_TOPIC": os.getenv("NOTIFICATION_TOPIC", None),
-    "NOTIFICATION_TEST_TOPIC": os.getenv("NOTIFICATION_TEST_TOPIC", None),
-    "HEADLESS": os.getenv("HEADLESS", None) == "True",
+    # "NOTIFICATION_TEST_TOPIC": os.getenv("NOTIFICATION_TEST_TOPIC", None),
+    "HEADLESS": os.getenv("HEADLESS", None),
     "FILTER_DAYS": os.getenv("FILTER_DAYS", None),
     "FILTER_PACES": os.getenv("FILTER_PACES", None)
 }
@@ -64,6 +67,8 @@ if not all(ENV_VARS.values()):
     missing_vars = [key for key, value in ENV_VARS.items() if not value]
     LOGGER.error("The following environment variables are missing from the .env file: %s", ", ".join(missing_vars))
     sys.exit(1)
+
+ENV_VARS["HEADLESS"] = ENV_VARS["HEADLESS"] == "True"
 
 ENV_VARS["FILTER_DAYS"] = [
     Days[day.strip().upper()]
@@ -97,18 +102,18 @@ def get_args():
     return parser.parse_args()
 
 
-def login(page):
+def login(page, rw_url=ENV_VARS["RW_URL"]):
     """ Navigate to login page and perform login using credentials from .env file. """
     # Go to the login page and enter creds
     LOGGER.info("Navigating to login...")
-    page.goto("https://winchesterctc.org.uk/RW/Dev/user_login.php")
+    page.goto(rw_url)
 
     # Fill in the login creds
     page.fill('input[name="userid_email"]', ENV_VARS["USERNAME"])
     page.fill('input[name="pwd"]', ENV_VARS["PASSWORD"])
 
     # Click the login button and wait for the page to load
-    page.get_by_role("button", name="Log In").click()
+    page.get_by_role("button", name="Sign In").click()
     page.wait_for_load_state("networkidle")
     LOGGER.info("Logged in successfully.")
 
@@ -158,7 +163,84 @@ def set_ride_filters(page, day_selections, pace_selections):
     time.sleep(1)  # Wait a bit for the page to update after changing filters
 
 
-def inspect_ride(page, ride_id):
+def get_ride_status(page):
+    """ Get the ride status from the ride details page.
+    Returns the status text if found, otherwise returns the default value.
+    """
+    row = page.locator("table tr", has_text="Ride status").first
+
+    # Handle no matching row found
+    if row.count() == 0:
+        return None
+
+    # handle rows with insufficient cells gracefully
+    cells = row.locator("td")
+    if cells.count() < 2:
+        return None
+
+    return cells.nth(1).inner_text().strip() or None
+
+
+def get_ride_note(page):
+    """ Get the text immediately above the first table on the page.
+    Returns the text if found, otherwise returns None.
+    """
+
+    text_above_table = page.evaluate("""() => {
+        const table = document.querySelector('table');
+        if (!table) return null;
+
+        const range = document.createRange();
+        range.setStart(document.body, 0);
+        range.setEndBefore(table);
+
+        const lines = range.toString()
+            .split(/\\r?\\n/)
+            .map(line => line.replace(/\\s+/g, ' ').trim())
+            .filter(Boolean);
+
+        return lines.length ? lines[lines.length - 1] : null;
+    }""")
+
+    return text_above_table
+
+
+def inspect_rides(page):
+    """ Inspect a given ride by its ID.
+    This function should navigate to the ride details page,
+    scrape the necessary information, and return it.
+    """
+
+    # Form a list of dicts representing each ride option in the select dropdown
+    select = page.locator("select").first
+    ride_details = select.locator("option").evaluate_all(
+        """opts => opts.map((o, idx) => ({
+            idx,
+            ride_id: o.value,
+            label: (o.textContent || '').trim()
+        }))"""
+    )
+
+    for ride in ride_details:
+        select.select_option(index=ride['idx'])
+        page.wait_for_load_state("networkidle")
+        ride_status = get_ride_status(page)
+        if not ride_status:
+            ride_status = get_ride_note(page)
+
+        # Map ride_status to RideStates if possible
+        try:
+            ride['ride_status'] = RideStates(ride_status)
+        except ValueError:
+            ride['ride_status'] = RideStates.UNKNOWN
+            LOGGER.warning("Ride ID %s, %s has unexpected status: %s", ride['ride_id'], ride['label'], ride_status)
+
+        page.go_back()
+
+    return ride_details
+
+
+def inspect_ride_old(page, ride_id):
     """ Inspect a given ride
     Select a ride from the dropdown
     scrape the wanted details
@@ -256,7 +338,7 @@ def remove_old_rides_from_previously_checked_rides(filename, valid_ride_ids):
 def book_ride(page, ride_id):
     """ Book a ride by clicking the book button on the ride details page """
     LOGGER.info("Booking ride %s...", ride_id)
-    page.goto(f"https://winchesterctc.org.uk/RW/Dev/ridedetails.php?ride={ride_id}")
+    page.goto(f"{ENV_VARS['RW_URL']}ridedetails.php?ride={ride_id}")
     page.wait_for_selector("#bookbutton")
     # page.click("#bookbutton")
     page.wait_for_load_state("networkidle")
@@ -326,21 +408,25 @@ def main():
 
     with sync_playwright() as p:
         # Launch browser (headless=False so you can see the login happen)
-        browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=ENV_VARS["HEADLESS"])
-        # browser = p.chromium.launch(headless=args.headless)
+        # browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=ENV_VARS["HEADLESS"])
+        browser = p.chromium.launch(headless=ENV_VARS["HEADLESS"])
         context = browser.new_context()
         page = context.new_page()
 
         # Go to the login page and enter creds
         login(page)
 
+        # Goto the set filters page
+        page.get_by_role("link", name="Filter", exact=True).click()
         # Set the day and pace filters
         set_ride_filters(page, ENV_VARS["FILTER_DAYS"], ENV_VARS["FILTER_PACES"])
+        # Goto the list of rides page
+        page.get_by_role("link", name="List View", exact=True).click()
 
         # Scrape the list of all Ride IDs and get the details for each ride
         ride_values = page.eval_on_selector_all("select#xx option", "options => options.map(o => o.value)")
         LOGGER.info("Found %d rides.", len(ride_values))
-        rides = [inspect_ride(page, rid) for rid in ride_values]
+        rides = inspect_rides(page)
 
         # If a ride is not in previously checked rides and status is available or full:
         # 1. Send a notification to users
@@ -351,20 +437,20 @@ def main():
         # If a ride is available or full and the user is not already on the ride, then notify the user
 
         # First filter the rides for all previously checked rides
-        not_checked = [ride for ride in rides if ride["RIDE_ID"] not in previously_checked_rides]
+        not_checked = [ride for ride in rides if ride["ride_id"] not in previously_checked_rides]
         LOGGER.info("Found %d rides that haven't been checked before.", len(not_checked))
 
         # Then filter for rides that are available or full
         active_rides = [
             ride for ride in not_checked
-            if ride["RIDE STATUS"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]
+            if ride["ride_status"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]
         ]
         LOGGER.info("Found %d rides that are new and available or full.", len(active_rides))
 
         for ride in active_rides:
 
             LOGGER.info(
-                "New active ride found: rid=%s, date=%s, desc=%s", ride["RIDE_ID"], ride["DATE"], ride["DESCRIPTION"]
+                "New active ride found: rid=%s, date=%s, desc=%s", ride["ride_id"], ride["date"], ride["label"]
             )
 
             # Notify the user about all new rides
@@ -392,11 +478,11 @@ def main():
             #     notify_booking_or_waitlist(ride, action="waitlised")
 
             # Now we have checked this ride we mark is so that we don't try to book/waitlist/notify again
-            add_to_previously_checked_rides(ride["RIDE_ID"])
+            add_to_previously_checked_rides(ride["ride_id"])
 
         remove_old_rides_from_previously_checked_rides(
             filename=PREVIOUSLY_CHECKED_RIDES_FILE,
-            valid_ride_ids=[ride["RIDE_ID"] for ride in rides]
+            valid_ride_ids=[ride["ride_id"] for ride in rides]
         )
 
         # Keeps the browser open so you can inspect it manually
