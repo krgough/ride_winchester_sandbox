@@ -163,11 +163,13 @@ def set_ride_filters(page, day_selections, pace_selections):
     time.sleep(1)  # Wait a bit for the page to update after changing filters
 
 
-def get_ride_status(page):
+def get_ride_status(page, field_name):
     """ Get the ride status from the ride details page.
     Returns the status text if found, otherwise returns the default value.
+
+    Ride status
     """
-    row = page.locator("table tr", has_text="Ride status").first
+    row = page.locator("table tr", has_text=f"{field_name}").first
 
     # Handle no matching row found
     if row.count() == 0:
@@ -224,16 +226,30 @@ def inspect_rides(page):
     for ride in ride_details:
         select.select_option(index=ride['idx'])
         page.wait_for_load_state("networkidle")
-        ride_status = get_ride_status(page)
-        if not ride_status:
-            ride_status = get_ride_note(page)
+
+        ride["Date"] = get_ride_status(page, "Date")
+        ride["Description"] = get_ride_status(page, "Description")
+        ride["Leader"] = get_ride_status(page, "Leader")
+        ride["Distance"] = get_ride_status(page, "Distance")
+        ride["Ride requires"] = get_ride_status(page, "Ride requires")
+        ride["Max. num. on ride"] = get_ride_status(page, "Max. num. on ride")
+        ride["Num. on ride"] = get_ride_status(page, "Num. on ride")
+        ride["Num. waiting"] = get_ride_status(page, "Num. waiting")
+        ride["Your status"] = get_ride_status(page, "Your status")
+
+        status = get_ride_status(page, "Ride status")
+
+        if not status:
+            status = get_ride_note(page)
 
         # Map ride_status to RideStates if possible
         try:
-            ride['ride_status'] = RideStates(ride_status)
+            ride['status'] = RideStates(status)
         except ValueError:
-            ride['ride_status'] = RideStates.UNKNOWN
-            LOGGER.warning("Ride ID %s, %s has unexpected status: %s", ride['ride_id'], ride['label'], ride_status)
+            ride['status'] = RideStates.UNKNOWN
+            LOGGER.warning("Ride ID %s, %s has unexpected status: %s", ride['ride_id'], ride['label'], status)
+
+        LOGGER.debug("rideid %s:  %s, %s, %s", ride['ride_id'], ride["Date"], ride["label"], ride["status"])
 
         page.go_back()
 
@@ -358,12 +374,11 @@ def add_to_wait_list(page, ride_id):
 def notify_ride(ride):
     """ Notify the user about a new ride - this is just a placeholder for now """
     LOGGER.info(
-        "Notifying user: New ride found! Ride Data: %s",
-        json.dumps(ride, indent=2)
+        "Notifying user: New ride found! Ride Data: %s, %s, %s", ride['ride_id'], ride['Date'], ride['Description']
     )
     url = f"https://ntfy.sh/{ENV_VARS['NOTIFICATION_TOPIC']}"
-    rw_url = f"https://www.winchesterctc.org.uk/RW/CalendarDetailsV2.php?ride={ride['RIDE_ID']}"
-    title = f"New ride found: {ride['DATE']}, {ride['DESCRIPTION']}"
+    rw_url = f"{ENV_VARS['RW_URL']}/index.php?ride={ride['ride_id']}"
+    title = f"New ride found: {ride['Date']}, {ride['Description']}"
     headers = {
         "Actions": f"View, View Ride, url={rw_url}",
         "Priority": "5",
@@ -443,14 +458,14 @@ def main():
         # Then filter for rides that are available or full
         active_rides = [
             ride for ride in not_checked
-            if ride["ride_status"] in [RideStates.AVAILABLE.value, RideStates.FULL.value]
+            if ride["status"] in [RideStates.AVAILABLE, RideStates.FULL]
         ]
         LOGGER.info("Found %d rides that are new and available or full.", len(active_rides))
 
         for ride in active_rides:
 
             LOGGER.info(
-                "New active ride found: rid=%s, date=%s, desc=%s", ride["ride_id"], ride["date"], ride["label"]
+                "New active ride found: rid=%s, date=%s, desc=%s", ride["ride_id"], ride["Date"], ride["Description"]
             )
 
             # Notify the user about all new rides
