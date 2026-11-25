@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 import sys
 import time
 
@@ -249,74 +250,9 @@ def inspect_rides(page):
             ride['status'] = RideStates.UNKNOWN
             LOGGER.warning("Ride ID %s, %s has unexpected status: %s", ride['ride_id'], ride['label'], status)
 
-        LOGGER.debug("rideid %s:  %s, %s, %s", ride['ride_id'], ride["Date"], ride["label"], ride["status"])
+        LOGGER.debug("rideid %s:  %s, %s, %s", ride['ride_id'], ride["Date"], ride["Description"], ride["status"])
 
         page.go_back()
-
-    return ride_details
-
-
-def inspect_ride_old(page, ride_id):
-    """ Inspect a given ride
-    Select a ride from the dropdown
-    scrape the wanted details
-    return to the rides list page
-    """
-
-    # select_option automatically triggers the 'change' event
-    # page.select_option("select#xx", value=ride_id)
-
-    # page.goto("https://winchesterctc.org.uk/RW/Dev/calendarView.php")  # Ensure we're on the rides list page
-    # page.wait_for_load_state("networkidle")
-
-    # page.goto(f"https://winchesterctc.org.uk/RW/index.php?ride={ride_id}")
-    # page.wait_for_load_state("networkidle")
-    # page.wait_for_selector("table.centertable")
-
-    LOGGER.info("Inspecting Ride ID: %s", ride_id)
-
-    post_data = {"listsel": ride_id}
-    page.evaluate("""(data) => {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'ridedetails.php';
-
-        for (const key in data) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = data[key];
-            form.appendChild(input);
-        }
-
-        document.body.appendChild(form);
-        form.submit();
-    }""", post_data)
-
-    # Now wait for the table to load
-    page.wait_for_selector("table.centertable")
-
-    # Scrape the ride content
-
-    # Find table
-    table_locator = page.locator("table.centertable")  # Use the actual ID or class
-    rows = table_locator.locator("tr").all()
-
-    ride_details = {"RIDE_ID": ride_id}
-    for row in rows:
-        # Get the cells in this row
-        cells = row.locator("td").all_inner_texts()
-
-        if len(cells) == 2:
-            key = cells[0].strip().upper()
-            value = cells[1].strip()
-            ride_details[key] = value
-
-    LOGGER.info(json.dumps(ride_details, indent=2))
-
-    # navigate back to the rides list if needed (or just select the next ride)
-    # page.click('a.linkbutton:has-text("Back to Rides List")')
-    # page.wait_for_load_state("networkidle")
 
     return ride_details
 
@@ -423,8 +359,13 @@ def main():
 
     with sync_playwright() as p:
         # Launch browser (headless=False so you can see the login happen)
-        # browser = p.chromium.launch(executable_path="/usr/bin/chromium-browser", headless=ENV_VARS["HEADLESS"])
-        browser = p.chromium.launch(headless=ENV_VARS["HEADLESS"])
+        # Choose executable path based on platform
+        launch_kwargs = {"headless": ENV_VARS["HEADLESS"]}
+        if platform.system() == "Linux":
+            # Raspberry Pi and other Linux systems use system-installed chromium
+            launch_kwargs["executable_path"] = "/usr/bin/chromium-browser"
+        
+        browser = p.chromium.launch(**launch_kwargs)
         context = browser.new_context()
         page = context.new_page()
 
@@ -506,5 +447,7 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
     main()
